@@ -2,6 +2,8 @@ import express, { Request, Response } from 'express'
 import cors from 'cors'
 import { TAccountDB, TAccountDBPost, TUserDB, TUserDBPost } from './types'
 import { db } from './database/knex'
+import { User } from './models/User'
+import { Accounts } from './models/Accounts'
 
 const app = express()
 
@@ -44,7 +46,17 @@ app.get("/users", async (req: Request, res: Response) => {
             usersDB = result
         }
 
-        res.status(200).send(usersDB)
+        const result = usersDB.map((user) => {
+            return new User(
+                user.id,
+                user.name,
+                user.email,
+                user.password,
+                user.created_at
+            )
+        })
+
+        res.status(200).send(result)
     } catch (error) {
         console.log(error)
 
@@ -91,17 +103,36 @@ app.post("/users", async (req: Request, res: Response) => {
             throw new Error("'id' já existe")
         }
 
-        const newUser: TUserDBPost = {
+        const newUser: User = new User(
             id,
             name,
             email,
-            password
-        }
+            password,
+            new Date().toISOString()
+        )
+        
+        console.log(newUser)
 
-        await db("users").insert(newUser)
+        await db("users").insert(
+            {
+                id: newUser.getId(),
+                name: newUser.getName(),
+                email: newUser.getEmail(),
+                password: newUser.getPassword(),
+                created_at: newUser.getCreatedAt()
+            }
+        )
         const [ userDB ]: TUserDB[] = await db("users").where({ id })
+        
+        const result: User = new User(
+            userDB.id,
+            userDB.name,
+            userDB.email,
+            userDB.password,
+            userDB.created_at
+        ) 
 
-        res.status(201).send(userDB)
+        res.status(201).send(result)
     } catch (error) {
         console.log(error)
 
@@ -121,7 +152,18 @@ app.get("/accounts", async (req: Request, res: Response) => {
     try {
         const accountsDB: TAccountDB[] = await db("accounts")
 
-        res.status(200).send(accountsDB)
+        const result = accountsDB.map((account) => {
+
+            return new Accounts(
+                account.id,
+                account.owner_id,
+                account.balance,
+                account.created_at
+            )
+        })
+
+        res.status(200).send(result)
+        
     } catch (error) {
         console.log(error)
 
@@ -148,7 +190,14 @@ app.get("/accounts/:id/balance", async (req: Request, res: Response) => {
             throw new Error("'id' não encontrado")
         }
 
-        res.status(200).send({ balance: accountDB.balance })
+        const result = new Accounts(
+            accountDB.id,
+            accountDB.owner_id,
+            accountDB.balance,
+            accountDB.created_at
+        )
+
+        res.status(200).send({ balance: result.getBalance() })
     } catch (error) {
         console.log(error)
 
@@ -203,7 +252,7 @@ app.post("/accounts", async (req: Request, res: Response) => {
         }
 
         if (error instanceof Error) {
-            res.send(error.message)
+            res.send({error: error.message})
         } else {
             res.send("Erro inesperado")
         }
